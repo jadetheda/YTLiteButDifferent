@@ -1,23 +1,42 @@
 #import "YTLite.h"
 #import "Utils/DeArrowManager.h"
+#import "../YouTubeHeader/YTIFormattedString.h"
+#import "../YouTubeHeader/YTIStringRun.h"
+#import "../YouTubeHeader/YTIThumbnailDetails.h"
+#import "../YouTubeHeader/YTIThumbnailDetails_Thumbnail.h"
 
-@interface YTIFormattedString : NSObject
-@property (nonatomic, strong) NSMutableArray *runsArray;
+@interface YTICompactVideoRenderer : NSObject
+- (NSString *)videoId;
+@end
+@interface YTIVideoRenderer : NSObject
+- (NSString *)videoId;
+@end
+@interface YTIGridVideoRenderer : NSObject
+- (NSString *)videoId;
+@end
+@interface YTIPlaylistVideoRenderer : NSObject
+- (NSString *)videoId;
+@end
+@interface YTCompactVideoCell : UIView
+- (void)setEntry:(id)entry;
+@end
+@interface YTVideoCell : UIView
+- (void)setEntry:(id)entry;
+@end
+@interface YTGridVideoCell : UIView
+- (void)setEntry:(id)entry;
+@end
+@interface YTPlaylistVideoCell : UIView
+- (void)setEntry:(id)entry;
+@end
+@interface YTIVideoDetails : NSObject
+- (NSString *)videoId;
+@end
+@interface YTWatchViewController : UIViewController
+- (void)setVideoDetails:(id)videoDetails;
+@end
+@interface YTIFormattedString (DeArrow)
 - (NSString *)text;
-@end
-
-@interface YTIFormattedStringRun : NSObject
-@property (nonatomic, strong) NSString *text;
-@end
-
-@interface YTIThumbnailDetails : NSObject
-@property (nonatomic, strong) NSMutableArray *thumbnailsArray;
-@end
-
-@interface YTIThumbnailDetails_Thumbnail : NSObject
-@property (nonatomic, strong) NSString *url;
-@property (nonatomic, assign) unsigned int width;
-@property (nonatomic, assign) unsigned int height;
 @end
 
 // Helper to modify Title
@@ -30,7 +49,7 @@ static YTIFormattedString *modifyTitle(YTIFormattedString *titleObj, NSString *v
     if (newTitle && ![newTitle isEqualToString:originalTitle]) {
         YTIFormattedString *newObj = [[%c(YTIFormattedString) alloc] init];
         if ([newObj respondsToSelector:@selector(setRunsArray:)]) {
-            YTIFormattedStringRun *run = [[%c(YTIFormattedStringRun) alloc] init];
+            YTIStringRun *run = [[%c(YTIStringRun) alloc] init];
             run.text = newTitle;
             newObj.runsArray = [NSMutableArray arrayWithObject:run];
             return newObj;
@@ -49,7 +68,7 @@ static YTIThumbnailDetails *modifyThumbnail(YTIThumbnailDetails *thumbnailObj, N
         YTIThumbnailDetails *newObj = [[%c(YTIThumbnailDetails) alloc] init];
         if ([newObj respondsToSelector:@selector(setThumbnailsArray:)]) {
             YTIThumbnailDetails_Thumbnail *thumb = [[%c(YTIThumbnailDetails_Thumbnail) alloc] init];
-            thumb.url = urlStr;
+            thumb.URL = urlStr;
             thumb.width = 1280;
             thumb.height = 720;
             newObj.thumbnailsArray = [NSMutableArray arrayWithObject:thumb];
@@ -180,4 +199,3 @@ static YTIThumbnailDetails *modifyThumbnail(YTIThumbnailDetails *thumbnailObj, N
     }
 }
 %end
-
