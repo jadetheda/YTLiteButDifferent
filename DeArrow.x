@@ -29,10 +29,10 @@ static YTIFormattedString *modifyTitle(YTIFormattedString *titleObj, NSString *v
     
     if (newTitle && ![newTitle isEqualToString:originalTitle]) {
         YTIFormattedString *newObj = [[%c(YTIFormattedString) alloc] init];
-        if ([newObj respondsToSelector:@selector(setRunsArray:)]) {
+        if ([newObj respondsToSelector:@selector(runsArray)]) {
             YTIFormattedStringRun *run = [[%c(YTIFormattedStringRun) alloc] init];
             run.text = newTitle;
-            newObj.runsArray = [NSMutableArray arrayWithObject:run];
+            [newObj.runsArray addObject:run];
             return newObj;
         }
     }
@@ -47,12 +47,12 @@ static YTIThumbnailDetails *modifyThumbnail(YTIThumbnailDetails *thumbnailObj, N
     if (hasDeArrow) {
         NSString *urlStr = [NSString stringWithFormat:@"https://dearrow-thumb.ajay.app/api/v1/getThumbnail?videoID=%@", videoId];
         YTIThumbnailDetails *newObj = [[%c(YTIThumbnailDetails) alloc] init];
-        if ([newObj respondsToSelector:@selector(setThumbnailsArray:)]) {
+        if ([newObj respondsToSelector:@selector(thumbnailsArray)]) {
             YTIThumbnailDetails_Thumbnail *thumb = [[%c(YTIThumbnailDetails_Thumbnail) alloc] init];
             thumb.url = urlStr;
             thumb.width = 1280;
             thumb.height = 720;
-            newObj.thumbnailsArray = [NSMutableArray arrayWithObject:thumb];
+            [newObj.thumbnailsArray addObject:thumb];
             return newObj;
         }
     }
