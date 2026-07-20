@@ -111,8 +111,19 @@ workflows:
         script: |
           if [ -n "$IPA_URL" ]; then
             echo "IPA_URL is set! Downloading decrypted YouTube IPA..."
-            curl -sLo $CM_BUILD_DIR/youtube.ipa "$IPA_URL"
-            
+            curl -sL "$IPA_URL" -o $CM_BUILD_DIR/youtube.ipa
+
+            file_type=$(file --mime-type -b $CM_BUILD_DIR/youtube.ipa)
+            echo "Downloaded file type: $file_type"
+            if [[ "$file_type" != "application/zip" && "$file_type" != "application/x-ios-app" ]]; then
+              echo "::error::Downloaded file is not a valid IPA (detected: $file_type)."
+              echo "First bytes of downloaded file (for debugging):"
+              head -c 300 $CM_BUILD_DIR/youtube.ipa
+              echo ""
+              echo "This usually means IPA_URL is a share/preview link, not a direct download link."
+              exit 1
+            fi
+
             echo "Installing pyzule/cyan..."
             pip3 install --force-reinstall https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip
             
