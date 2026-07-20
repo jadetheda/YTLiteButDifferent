@@ -1,0 +1,158 @@
+workflows:
+  build-ytlite:
+    name: Build YTLite Tweak & IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      groups:
+        - target_env # Optional: for user custom variables like IPA_URL
+      xcode: latest
+      vars:
+        THEOS: /Users/builder/theos
+    cache:
+      cache_paths:
+        - $THEOS
+        - $CM_BUILD_DIR/../YouTubeHeader
+        - $CM_BUILD_DIR/../protobuf
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: '*'
+          include: true
+    scripts:
+      - name: Install System Dependencies
+        script: |
+          brew install make ldid dpkg
+          echo "export PATH=\"$(brew --prefix make)/libexec/gnubin:\$PATH\"" >> $CM_ENV
+      - name: Setup Theos
+        script: |
+          if [ -d "$THEOS" ]; then
+            cd $THEOS
+            ORIGIN=$(git remote get-url origin || echo "")
+            if [[ "$ORIGIN" != *"roothide/theos"* ]]; then
+              echo "Theos remote is $ORIGIN. Removing old cached theos..."
+              rm -rf $THEOS
+            fi
+          fi
+          
+          if [ ! -d "$THEOS" ]; then
+            git clone --recursive https://github.com/roothide/theos.git $THEOS
+          else
+            echo "Theos already cached. Updating..."
+            cd $THEOS
+            git pull || true
+            git submodule update --init --recursive || true
+          fi
+      - name: Download iOS 16.5 SDK
+        script: |
+          if [ ! -d "$THEOS/sdks/iPhoneOS16.5.sdk" ]; then
+            git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/theos/sdks/ ~/sdks_temp
+            cd ~/sdks_temp
+            git sparse-checkout set --no-cone iPhoneOS16.5.sdk
+            git checkout
+            mv *.sdk $THEOS/sdks/
+            rm -rf ~/sdks_temp
+          else
+            echo "SDK already cached."
+          fi
+      - name: Setup Header Dependencies
+        script: |
+          # Clone YouTubeHeader sibling (required by YouTubeHeaders.h: #import "../YouTubeHeader/...")
+          cd $CM_BUILD_DIR/..
+          if [ ! -d "YouTubeHeader" ]; then
+            git clone --quiet --depth=1 https://github.com/PoomSmart/YouTubeHeader.git
+          else
+            echo "YouTubeHeader already exists, pulling updates..."
+            cd YouTubeHeader && git pull || true
+            cd ..
+          fi
+          
+          # Also clone into theos include
+          if [ ! -d "$THEOS/include/YouTubeHeader" ]; then
+            git clone --quiet --depth=1 https://github.com/PoomSmart/YouTubeHeader.git $THEOS/include/YouTubeHeader
+          else
+            cd $THEOS/include/YouTubeHeader && git pull || true
+          fi
+
+          # Clone protobuf sibling, PINNED to v29.6 (required by YTNativeShare.x's objectivec headers).
+          # Note: protobuf v30+ deprecates/removes GPBUnknownFieldSet.h in favor of GPBUnknownFields.h,
+          # so cloning the moving "main" branch breaks this build once upstream crosses that line.
+          # Pinning to a fixed pre-v30 tag keeps this stable regardless of upstream changes.
+          cd $CM_BUILD_DIR/..
+          if [ ! -d "protobuf" ]; then
+            git clone --quiet --depth=1 --branch v29.6 https://github.com/protocolbuffers/protobuf.git
+          else
+            echo "protobuf already exists, verifying pinned tag..."
+            cd protobuf
+            git fetch --quiet --depth=1 origin tag v29.6
+            git checkout --quiet v29.6
+            cd ..
+          fi
+      - name: Build Tweak (.deb)
+        script: |
+          cd $CM_BUILD_DIR
+          
+          echo "Building rootless package..."
+          ROOTLESS=1 make clean package FINALPACKAGE=1
+          mv packages/*.deb $CM_BUILD_DIR/ytlite_rootless.deb
+          make clean
+          
+          echo "Building roothide package..."
+          ROOTHIDE=1 make clean package FINALPACKAGE=1
+          mv packages/*.deb $CM_BUILD_DIR/ytlite_roothide.deb
+          make clean
+          
+          echo "Building rootful package..."
+          make clean package FINALPACKAGE=1
+          mv packages/*.deb $CM_BUILD_DIR/ytlite_rootful.deb
+      - name: Package to Decrypted IPA (Sideloading)
+        script: |
+          if [ -n "$IPA_URL" ]; then
+            echo "IPA_URL is set! Downloading decrypted YouTube IPA..."
+            IPA_URL_TRIMMED=$(printf '%s' "$IPA_URL" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            if [ "$IPA_URL_TRIMMED" != "$IPA_URL" ]; then
+              echo "Note: IPA_URL contained leading/trailing whitespace or newlines - trimmed before use."
+            fi
+
+            set +e
+            if [[ "$IPA_URL_TRIMMED" == *"drive.google.com"* ]]; then
+              echo "Detected Google Drive link - using gdown (handles Drive's large-file confirmation page)..."
+              pip3 install --quiet gdown
+              FILE_ID=$(echo "$IPA_URL_TRIMMED" | sed -E 's#.*/d/([^/]+).*#\1#')
+              gdown "https://drive.google.com/uc?id=$FILE_ID" -O $CM_BUILD_DIR/youtube.ipa
+              CURL_EXIT=$?
+            else
+              curl -sS -L --retry 2 --connect-timeout 30 -w "\ncurl reported HTTP status: %{http_code}\n" "$IPA_URL_TRIMMED" -o $CM_BUILD_DIR/youtube.ipa
+              CURL_EXIT=$?
+            fi
+            set -e
+
+            if [ $CURL_EXIT -ne 0 ] || [ ! -f "$CM_BUILD_DIR/youtube.ipa" ]; then
+              echo "::error::curl failed (exit code $CURL_EXIT) and no file was written. IPA_URL may be unreachable, expired, require auth, or be blocked from Codemagic's network. See the curl error message printed above."
+              exit 1
+            fi
+
+            file_type=$(file --mime-type -b $CM_BUILD_DIR/youtube.ipa)
+            echo "Downloaded file type: $file_type"
+            if [[ "$file_type" != "application/zip" && "$file_type" != "application/x-ios-app" ]]; then
+              echo "::error::Downloaded file is not a valid IPA (detected: $file_type)."
+              echo "First bytes of downloaded file (for debugging):"
+              head -c 300 $CM_BUILD_DIR/youtube.ipa
+              echo ""
+              echo "This usually means IPA_URL is a share/preview link, not a direct download link."
+              exit 1
+            fi
+
+            echo "Installing pyzule/cyan..."
+            pip3 install --force-reinstall https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip
+            
+            echo "Injecting tweak into IPA..."
+            cyan -i $CM_BUILD_DIR/youtube.ipa -o $CM_BUILD_DIR/YouTubePlus_Sideload.ipa -uwef $CM_BUILD_DIR/ytlite_rootless.deb
+          else
+            echo "IPA_URL environment variable is not set. Skipping IPA injection. Only jailbreak .deb tweaks will be built."
+          fi
+    artifacts:
+      - "*.deb"
+      - "*.ipa"
