@@ -29,10 +29,10 @@ static YTIFormattedString *modifyTitle(YTIFormattedString *titleObj, NSString *v
     
     if (newTitle && ![newTitle isEqualToString:originalTitle]) {
         YTIFormattedString *newObj = [[%c(YTIFormattedString) alloc] init];
-        if ([newObj respondsToSelector:@selector(runsArray)]) {
+        if ([newObj respondsToSelector:@selector(setRunsArray:)]) {
             YTIFormattedStringRun *run = [[%c(YTIFormattedStringRun) alloc] init];
             run.text = newTitle;
-            [newObj.runsArray addObject:run];
+            newObj.runsArray = [NSMutableArray arrayWithObject:run];
             return newObj;
         }
     }
@@ -47,52 +47,109 @@ static YTIThumbnailDetails *modifyThumbnail(YTIThumbnailDetails *thumbnailObj, N
     if (hasDeArrow) {
         NSString *urlStr = [NSString stringWithFormat:@"https://dearrow-thumb.ajay.app/api/v1/getThumbnail?videoID=%@", videoId];
         YTIThumbnailDetails *newObj = [[%c(YTIThumbnailDetails) alloc] init];
-        if ([newObj respondsToSelector:@selector(thumbnailsArray)]) {
+        if ([newObj respondsToSelector:@selector(setThumbnailsArray:)]) {
             YTIThumbnailDetails_Thumbnail *thumb = [[%c(YTIThumbnailDetails_Thumbnail) alloc] init];
             thumb.url = urlStr;
             thumb.width = 1280;
             thumb.height = 720;
-            [newObj.thumbnailsArray addObject:thumb];
+            newObj.thumbnailsArray = [NSMutableArray arrayWithObject:thumb];
             return newObj;
         }
     }
     return thumbnailObj;
 }
 
-#define HOOK_RENDERER(Class) \
-%hook Class \
-- (id)title { return modifyTitle(%orig, [self respondsToSelector:@selector(videoId)] ? [self performSelector:@selector(videoId)] : nil); } \
-- (id)thumbnail { return modifyThumbnail(%orig, [self respondsToSelector:@selector(videoId)] ? [self performSelector:@selector(videoId)] : nil); } \
+%hook YTICompactVideoRenderer
+- (id)title { return modifyTitle(%orig, [self respondsToSelector:@selector(videoId)] ? [self performSelector:@selector(videoId)] : nil); }
+- (id)thumbnail { return modifyThumbnail(%orig, [self respondsToSelector:@selector(videoId)] ? [self performSelector:@selector(videoId)] : nil); }
 %end
 
-HOOK_RENDERER(YTICompactVideoRenderer)
-HOOK_RENDERER(YTIVideoRenderer)
-HOOK_RENDERER(YTIGridVideoRenderer)
-HOOK_RENDERER(YTIPlaylistVideoRenderer)
-
-#define HOOK_CELL(Class) \
-%hook Class \
-- (void)setEntry:(id)entry { \
-    %orig; \
-    if (entry && [entry respondsToSelector:@selector(videoId)]) { \
-        NSString *videoId = [entry performSelector:@selector(videoId)]; \
-        if (videoId) { \
-            [[DeArrowManager sharedManager] fetchDeArrowDataForVideoIDs:@[videoId] completion:^(BOOL updated) { \
-                if (updated) { \
-                    dispatch_async(dispatch_get_main_queue(), ^{ \
-                        [self setEntry:entry]; \
-                    }); \
-                } \
-            }]; \
-        } \
-    } \
-} \
+%hook YTIVideoRenderer
+- (id)title { return modifyTitle(%orig, [self respondsToSelector:@selector(videoId)] ? [self performSelector:@selector(videoId)] : nil); }
+- (id)thumbnail { return modifyThumbnail(%orig, [self respondsToSelector:@selector(videoId)] ? [self performSelector:@selector(videoId)] : nil); }
 %end
 
-HOOK_CELL(YTCompactVideoCell)
-HOOK_CELL(YTVideoCell)
-HOOK_CELL(YTGridVideoCell)
-HOOK_CELL(YTPlaylistVideoCell)
+%hook YTIGridVideoRenderer
+- (id)title { return modifyTitle(%orig, [self respondsToSelector:@selector(videoId)] ? [self performSelector:@selector(videoId)] : nil); }
+- (id)thumbnail { return modifyThumbnail(%orig, [self respondsToSelector:@selector(videoId)] ? [self performSelector:@selector(videoId)] : nil); }
+%end
+
+%hook YTIPlaylistVideoRenderer
+- (id)title { return modifyTitle(%orig, [self respondsToSelector:@selector(videoId)] ? [self performSelector:@selector(videoId)] : nil); }
+- (id)thumbnail { return modifyThumbnail(%orig, [self respondsToSelector:@selector(videoId)] ? [self performSelector:@selector(videoId)] : nil); }
+%end
+
+%hook YTCompactVideoCell
+- (void)setEntry:(id)entry {
+    %orig;
+    if (entry && [entry respondsToSelector:@selector(videoId)]) {
+        NSString *videoId = [entry performSelector:@selector(videoId)];
+        if (videoId) {
+            [[DeArrowManager sharedManager] fetchDeArrowDataForVideoIDs:@[videoId] completion:^(BOOL updated) {
+                if (updated) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self setEntry:entry];
+                    });
+                }
+            }];
+        }
+    }
+}
+%end
+
+%hook YTVideoCell
+- (void)setEntry:(id)entry {
+    %orig;
+    if (entry && [entry respondsToSelector:@selector(videoId)]) {
+        NSString *videoId = [entry performSelector:@selector(videoId)];
+        if (videoId) {
+            [[DeArrowManager sharedManager] fetchDeArrowDataForVideoIDs:@[videoId] completion:^(BOOL updated) {
+                if (updated) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self setEntry:entry];
+                    });
+                }
+            }];
+        }
+    }
+}
+%end
+
+%hook YTGridVideoCell
+- (void)setEntry:(id)entry {
+    %orig;
+    if (entry && [entry respondsToSelector:@selector(videoId)]) {
+        NSString *videoId = [entry performSelector:@selector(videoId)];
+        if (videoId) {
+            [[DeArrowManager sharedManager] fetchDeArrowDataForVideoIDs:@[videoId] completion:^(BOOL updated) {
+                if (updated) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self setEntry:entry];
+                    });
+                }
+            }];
+        }
+    }
+}
+%end
+
+%hook YTPlaylistVideoCell
+- (void)setEntry:(id)entry {
+    %orig;
+    if (entry && [entry respondsToSelector:@selector(videoId)]) {
+        NSString *videoId = [entry performSelector:@selector(videoId)];
+        if (videoId) {
+            [[DeArrowManager sharedManager] fetchDeArrowDataForVideoIDs:@[videoId] completion:^(BOOL updated) {
+                if (updated) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self setEntry:entry];
+                    });
+                }
+            }];
+        }
+    }
+}
+%end
 
 %hook YTIVideoDetails
 - (NSString *)title {
