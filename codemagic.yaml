@@ -73,6 +73,16 @@ workflows:
           else
             cd $THEOS/include/YouTubeHeader && git pull || true
           fi
+
+          # Clone protobuf sibling (required by YTNativeShare.x: #import "../protobuf/objectivec/GPBDescriptor.h")
+          cd $CM_BUILD_DIR/..
+          if [ ! -d "protobuf" ]; then
+            git clone --quiet --depth=1 https://github.com/protocolbuffers/protobuf.git
+          else
+            echo "protobuf already exists, pulling updates..."
+            cd protobuf && git pull || true
+            cd ..
+          fi
       - name: Build Tweak (.deb)
         script: |
           cd $CM_BUILD_DIR
