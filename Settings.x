@@ -135,6 +135,25 @@ static NSString *GetCacheSize() {
 
     [sectionItems addObject:general];
 
+    YTSettingsSectionItem *dearrow = [YTSettingsSectionItemClass itemWithTitle:@"DeArrow"
+        accessibilityIdentifier:@"YTLiteSectionItem"
+        detailTextBlock:^NSString *() {
+            return @"‣";
+        }
+        selectBlock:^BOOL (YTSettingsCell *cell, NSUInteger arg1) {
+            NSArray <YTSettingsSectionItem *> *rows = @[
+            [self switchWithTitle:@"Replace Titles" key:@"dearrowTitles"],
+            [self switchWithTitle:@"Title Casing Fallback" key:@"dearrowFormatTitles"],
+            [self switchWithTitle:@"Replace Thumbnails" key:@"dearrowThumbnails"]
+        ];
+
+        YTSettingsPickerViewController *picker = [[%c(YTSettingsPickerViewController) alloc] initWithNavTitle:@"DeArrow" pickerSectionTitle:nil rows:rows selectedItemIndex:NSNotFound parentResponder:[self parentResponder]];
+        [settingsViewController pushViewController:picker];
+        return YES;
+    }];
+
+    [sectionItems addObject:dearrow];
+
     YTSettingsSectionItem *navbar = [YTSettingsSectionItemClass itemWithTitle:LOC(@"Navbar")
     accessibilityIdentifier:@"YTLiteSectionItem"
     detailTextBlock:^NSString *() {
