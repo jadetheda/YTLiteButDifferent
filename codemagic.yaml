@@ -111,7 +111,15 @@ workflows:
         script: |
           if [ -n "$IPA_URL" ]; then
             echo "IPA_URL is set! Downloading decrypted YouTube IPA..."
-            curl -sL "$IPA_URL" -o $CM_BUILD_DIR/youtube.ipa
+            set +e
+            curl -sS -L --retry 2 --connect-timeout 30 -w "\ncurl reported HTTP status: %{http_code}\n" "$IPA_URL" -o $CM_BUILD_DIR/youtube.ipa
+            CURL_EXIT=$?
+            set -e
+
+            if [ $CURL_EXIT -ne 0 ] || [ ! -f "$CM_BUILD_DIR/youtube.ipa" ]; then
+              echo "::error::curl failed (exit code $CURL_EXIT) and no file was written. IPA_URL may be unreachable, expired, require auth, or be blocked from Codemagic's network. See the curl error message printed above."
+              exit 1
+            fi
 
             file_type=$(file --mime-type -b $CM_BUILD_DIR/youtube.ipa)
             echo "Downloaded file type: $file_type"
