@@ -1,0 +1,75 @@
+workflows:
+  build-ytlite:
+    name: Build YTLite Tweak & IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      groups:
+        - target_env # Optional: for user custom variables like IPA_URL
+      xcode: latest
+      vars:
+        THEOS: /Users/builder/theos
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: '*'
+          include: true
+    scripts:
+      - name: Install System Dependencies
+        script: |
+          brew install make ldid dpkg
+          echo "export PATH=\"$(brew --prefix make)/libexec/gnubin:\$PATH\"" >> $CM_ENV
+      - name: Setup Theos
+        script: |
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+      - name: Download iOS 16.5 SDK
+        script: |
+          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/theos/sdks/ ~/sdks_temp
+          cd ~/sdks_temp
+          git sparse-checkout set --no-cone iPhoneOS16.5.sdk
+          git checkout
+          mv *.sdk $THEOS/sdks/
+          rm -rf ~/sdks_temp
+      - name: Setup Header Dependencies
+        script: |
+          # Clone YouTubeHeader sibling (required by YouTubeHeaders.h: #import "../YouTubeHeader/...")
+          cd $CM_BUILD_DIR/..
+          git clone --quiet --depth=1 https://github.com/PoomSmart/YouTubeHeader.git
+          # Also clone into theos include
+          git clone --quiet --depth=1 https://github.com/PoomSmart/YouTubeHeader.git $THEOS/include/YouTubeHeader
+      - name: Build Tweak (.deb)
+        script: |
+          cd $CM_BUILD_DIR
+          
+          echo "Building rootless package..."
+          ROOTLESS=1 make clean package FINALPACKAGE=1
+          mv packages/*.deb $CM_BUILD_DIR/ytlite_rootless.deb
+          make clean
+          
+          echo "Building roothide package..."
+          ROOTHIDE=1 make clean package FINALPACKAGE=1
+          mv packages/*.deb $CM_BUILD_DIR/ytlite_roothide.deb
+          make clean
+          
+          echo "Building rootful package..."
+          make clean package FINALPACKAGE=1
+          mv packages/*.deb $CM_BUILD_DIR/ytlite_rootful.deb
+      - name: Package to Decrypted IPA (Sideloading)
+        script: |
+          if [ -n "$IPA_URL" ]; then
+            echo "IPA_URL is set! Downloading decrypted YouTube IPA..."
+            curl -sLo $CM_BUILD_DIR/youtube.ipa "$IPA_URL"
+            
+            echo "Installing pyzule/cyan..."
+            pip3 install --force-reinstall https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip
+            
+            echo "Injecting tweak into IPA..."
+            cyan -i $CM_BUILD_DIR/youtube.ipa -o $CM_BUILD_DIR/YouTubePlus_Sideload.ipa -uwef $CM_BUILD_DIR/ytlite_rootless.deb
+          else
+            echo "IPA_URL environment variable is not set. Skipping IPA injection. Only jailbreak .deb tweaks will be built."
+          fi
+    artifacts:
+      - "*.deb"
+      - "*.ipa"
