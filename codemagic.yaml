@@ -74,13 +74,18 @@ workflows:
             cd $THEOS/include/YouTubeHeader && git pull || true
           fi
 
-          # Clone protobuf sibling (required by YTNativeShare.x: #import "../protobuf/objectivec/GPBDescriptor.h")
+          # Clone protobuf sibling, PINNED to v29.6 (required by YTNativeShare.x's objectivec headers).
+          # Note: protobuf v30+ deprecates/removes GPBUnknownFieldSet.h in favor of GPBUnknownFields.h,
+          # so cloning the moving "main" branch breaks this build once upstream crosses that line.
+          # Pinning to a fixed pre-v30 tag keeps this stable regardless of upstream changes.
           cd $CM_BUILD_DIR/..
           if [ ! -d "protobuf" ]; then
-            git clone --quiet --depth=1 https://github.com/protocolbuffers/protobuf.git
+            git clone --quiet --depth=1 --branch v29.6 https://github.com/protocolbuffers/protobuf.git
           else
-            echo "protobuf already exists, pulling updates..."
-            cd protobuf && git pull || true
+            echo "protobuf already exists, verifying pinned tag..."
+            cd protobuf
+            git fetch --quiet --depth=1 origin tag v29.6
+            git checkout --quiet v29.6
             cd ..
           fi
       - name: Build Tweak (.deb)
