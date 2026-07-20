@@ -9,6 +9,9 @@ workflows:
       xcode: latest
       vars:
         THEOS: /Users/builder/theos
+    cache:
+      cache_paths:
+        - $THEOS
     triggering:
       events:
         - push
@@ -23,22 +26,44 @@ workflows:
           echo "export PATH=\"$(brew --prefix make)/libexec/gnubin:\$PATH\"" >> $CM_ENV
       - name: Setup Theos
         script: |
-          git clone --recursive https://github.com/theos/theos.git $THEOS
+          if [ ! -d "$THEOS" ]; then
+            git clone --recursive https://github.com/theos/theos.git $THEOS
+          else
+            echo "Theos already cached. Updating..."
+            cd $THEOS
+            git pull || true
+            git submodule update --init --recursive || true
+          fi
       - name: Download iOS 16.5 SDK
         script: |
-          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/theos/sdks/ ~/sdks_temp
-          cd ~/sdks_temp
-          git sparse-checkout set --no-cone iPhoneOS16.5.sdk
-          git checkout
-          mv *.sdk $THEOS/sdks/
-          rm -rf ~/sdks_temp
+          if [ ! -d "$THEOS/sdks/iPhoneOS16.5.sdk" ]; then
+            git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/theos/sdks/ ~/sdks_temp
+            cd ~/sdks_temp
+            git sparse-checkout set --no-cone iPhoneOS16.5.sdk
+            git checkout
+            mv *.sdk $THEOS/sdks/
+            rm -rf ~/sdks_temp
+          else
+            echo "SDK already cached."
+          fi
       - name: Setup Header Dependencies
         script: |
           # Clone YouTubeHeader sibling (required by YouTubeHeaders.h: #import "../YouTubeHeader/...")
           cd $CM_BUILD_DIR/..
-          git clone --quiet --depth=1 https://github.com/PoomSmart/YouTubeHeader.git
+          if [ ! -d "YouTubeHeader" ]; then
+            git clone --quiet --depth=1 https://github.com/PoomSmart/YouTubeHeader.git
+          else
+            echo "YouTubeHeader already exists, pulling updates..."
+            cd YouTubeHeader && git pull || true
+            cd ..
+          fi
+          
           # Also clone into theos include
-          git clone --quiet --depth=1 https://github.com/PoomSmart/YouTubeHeader.git $THEOS/include/YouTubeHeader
+          if [ ! -d "$THEOS/include/YouTubeHeader" ]; then
+            git clone --quiet --depth=1 https://github.com/PoomSmart/YouTubeHeader.git $THEOS/include/YouTubeHeader
+          else
+            cd $THEOS/include/YouTubeHeader && git pull || true
+          fi
       - name: Build Tweak (.deb)
         script: |
           cd $CM_BUILD_DIR
