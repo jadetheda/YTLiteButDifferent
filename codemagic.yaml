@@ -26,8 +26,17 @@ workflows:
           echo "export PATH=\"$(brew --prefix make)/libexec/gnubin:\$PATH\"" >> $CM_ENV
       - name: Setup Theos
         script: |
+          if [ -d "$THEOS" ]; then
+            cd $THEOS
+            ORIGIN=$(git remote get-url origin || echo "")
+            if [[ "$ORIGIN" != *"roothide/theos"* ]]; then
+              echo "Theos remote is $ORIGIN. Removing old cached theos..."
+              rm -rf $THEOS
+            fi
+          fi
+          
           if [ ! -d "$THEOS" ]; then
-            git clone --recursive https://github.com/theos/theos.git $THEOS
+            git clone --recursive https://github.com/roothide/theos.git $THEOS
           else
             echo "Theos already cached. Updating..."
             cd $THEOS
