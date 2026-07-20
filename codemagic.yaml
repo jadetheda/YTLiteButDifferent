@@ -12,6 +12,8 @@ workflows:
     cache:
       cache_paths:
         - $THEOS
+        - $CM_BUILD_DIR/../YouTubeHeader
+        - $CM_BUILD_DIR/../protobuf
     triggering:
       events:
         - push
