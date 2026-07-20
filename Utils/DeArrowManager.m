@@ -39,7 +39,10 @@
 
 - (NSString *)getReplacedTitleForVideoID:(NSString *)videoID originalTitle:(NSString *)originalTitle {
     if (!videoID) return [self formatTitle:originalTitle];
-    NSString *cached = self.titleCache[videoID];
+    NSString *cached;
+    @synchronized (self) {
+        cached = self.titleCache[videoID];
+    }
     if (cached) {
         return [cached isEqualToString:@""] ? [self formatTitle:originalTitle] : cached;
     }
@@ -48,7 +51,10 @@
 
 - (BOOL)hasReplacedThumbnailForVideoID:(NSString *)videoID {
     if (!videoID) return NO;
-    NSNumber *cached = self.thumbnailCache[videoID];
+    NSNumber *cached;
+    @synchronized (self) {
+        cached = self.thumbnailCache[videoID];
+    }
     if (cached) {
         return [cached boolValue];
     }
