@@ -29,10 +29,10 @@
 @interface YTPlaylistVideoCell : UIView
 - (void)setEntry:(id)entry;
 @end
-@interface YTIVideoDetails : NSObject
+@interface YTIVideoDetails (DeArrow)
 - (NSString *)videoId;
 @end
-@interface YTWatchViewController : UIViewController
+@interface YTWatchViewController (DeArrow)
 - (void)setVideoDetails:(id)videoDetails;
 @end
 @interface YTIFormattedString (DeArrow)
