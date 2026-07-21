@@ -111,9 +111,22 @@ workflows:
         script: |
           if [ -n "$IPA_URL" ]; then
             echo "IPA_URL is set! Downloading decrypted YouTube IPA..."
+            IPA_URL_TRIMMED=$(printf '%s' "$IPA_URL" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            if [ "$IPA_URL_TRIMMED" != "$IPA_URL" ]; then
+              echo "Note: IPA_URL contained leading/trailing whitespace or newlines - trimmed before use."
+            fi
+
             set +e
-            curl -sS -L --retry 2 --connect-timeout 30 -w "\ncurl reported HTTP status: %{http_code}\n" "$IPA_URL" -o $CM_BUILD_DIR/youtube.ipa
-            CURL_EXIT=$?
+            if [[ "$IPA_URL_TRIMMED" == *"drive.google.com"* ]]; then
+              echo "Detected Google Drive link - using gdown (handles Drive's large-file confirmation page)..."
+              pip3 install --quiet gdown
+              FILE_ID=$(echo "$IPA_URL_TRIMMED" | sed -E 's#.*/d/([^/]+).*#\1#')
+              gdown "https://drive.google.com/uc?id=$FILE_ID" -O $CM_BUILD_DIR/youtube.ipa
+              CURL_EXIT=$?
+            else
+              curl -sS -L --retry 2 --connect-timeout 30 -w "\ncurl reported HTTP status: %{http_code}\n" "$IPA_URL_TRIMMED" -o $CM_BUILD_DIR/youtube.ipa
+              CURL_EXIT=$?
+            fi
             set -e
 
             if [ $CURL_EXIT -ne 0 ] || [ ! -f "$CM_BUILD_DIR/youtube.ipa" ]; then
